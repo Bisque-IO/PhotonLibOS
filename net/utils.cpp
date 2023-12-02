@@ -102,29 +102,31 @@ int _gethostbyname(const char* name, Delegate<int, IPAddr> append_op) {
     return idx;
 }
 
-inline __attribute__((always_inline)) void base64_translate_3to4(const char *in, char *out)  {
-    #if defined(__clang__)
-    struct xlator {
-        unsigned char _;
-        unsigned char a : 6;
-        unsigned char b : 6;
-        unsigned char c : 6;
-        unsigned char d : 6;
-    } __attribute__((packed));
-    #else
-    // note: offset of packed bit-field ‘photon::net::base64_translate_3to4(const char*, char*)::xlator::b’ has changed in GCC 4.4
-    // gcc doesn't like bitfields that cross the width
-    // uint16_t in place of unsigned char bitfields removes this note
-    // the layout will be the same as using unsigned char
-    struct xlator {
-        unsigned char _;
-        uint16_t a : 6;
-        uint16_t b : 6;
-        uint16_t c : 6;
-        uint16_t d : 6;
-    } __attribute__((packed));
-    #endif
-    static_assert(sizeof(xlator) == 4, "...");
+#if defined(__clang__)
+struct xlator {
+    unsigned char _;
+    unsigned char a : 6;
+    unsigned char b : 6;
+    unsigned char c : 6;
+    unsigned char d : 6;
+} __attribute__((packed));
+#else
+// note: offset of packed bit-field ‘photon::net::base64_translate_3to4(const char*, char*)::xlator::b’ has changed in GCC 4.4
+// gcc doesn't like bitfields that cross the width
+// uint16_t in place of unsigned char bitfields removes this note
+// the layout will be the same as using unsigned char
+struct xlator {
+    unsigned char _;
+    uint16_t a : 6;
+    uint16_t b : 6;
+    uint16_t c : 6;
+    uint16_t d : 6;
+} __attribute__((packed));
+#endif
+static_assert(sizeof(xlator) == 4, "...");
+
+inline __attribute__((always_inline))
+void base64_translate_3to4(const char *in, char *out)  {
     static const unsigned char tbl[] =
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     auto v = htonl(*(uint32_t *)in);
@@ -135,6 +137,7 @@ inline __attribute__((always_inline)) void base64_translate_3to4(const char *in,
     *(uint32_t *)out = ((tbl[x.a] << 24) + (tbl[x.b] << 16) +
                         (tbl[x.c] << 8) + (tbl[x.d] << 0));
 }
+
 void Base64Encode(std::string_view in, std::string &out) {
     auto main = in.size() / 3;
     auto remain = in.size() % 3;
@@ -154,7 +157,6 @@ void Base64Encode(std::string_view in, std::string &out) {
         base64_translate_3to4(_in + 6, _out + 8);
         base64_translate_3to4(_in + 9, _out + 12);
     }
-
 
     for (; _in < end; _in += 3, _out += 4) {
         base64_translate_3to4(_in, _out);
@@ -209,30 +211,8 @@ static unsigned char get_index_of(char val, bool &ok) {
 }
  #undef EI
 
+inline
 bool base64_translate_4to3(const char *in, char *out)  {
-    #if defined(__clang__)
-    struct xlator {
-        unsigned char _;
-        unsigned char a : 6;
-        unsigned char b : 6;
-        unsigned char c : 6;
-        unsigned char d : 6;
-    } __attribute__((packed));
-    #else
-    // note: offset of packed bit-field ‘photon::net::base64_translate_4to3(const char*, char*)::xlator::b’ has changed in GCC 4.4
-    // gcc doesn't like bitfields that cross the width
-    // uint16_t in place of unsigned char bitfields removes this note
-    // the layout will be the same as using unsigned char
-    struct xlator {
-        unsigned char _;
-        uint16_t a : 6;
-        uint16_t b : 6;
-        uint16_t c : 6;
-        uint16_t d : 6;
-    } __attribute__((packed));
-    #endif
-    static_assert(sizeof(xlator) == 4, "...");
-
     xlator v;
     bool f1, f2, f3, f4;
     v.a = get_index_of(*(in+3), f1);
@@ -240,10 +220,10 @@ bool base64_translate_4to3(const char *in, char *out)  {
     v.c = get_index_of(*(in+1), f3);
     v.d = get_index_of(*(in),   f4);
 
-
     *(uint32_t *)out = ntohl(*(uint32_t *)&v);
     return (f1 && f2 && f3 && f4);
 }
+
 bool Base64Decode(std::string_view in, std::string &out) {
 #define GSIZE 4 //Size of each group
     auto in_size = in.size();
@@ -288,8 +268,8 @@ bool Base64Decode(std::string_view in, std::string &out) {
 
 class DefaultResolver : public Resolver {
 public:
-    DefaultResolver(uint64_t cache_ttl, uint64_t resolve_timeout, bool ipv6)
-        : dnscache_(cache_ttl), resolve_timeout_(resolve_timeout), ipv6_(ipv6) {}
+    DefaultResolver(uint64_t cache_ttl, uint64_t resolve_timeout)
+        : dnscache_(cache_ttl), resolve_timeout_(resolve_timeout) {}
     ~DefaultResolver() { dnscache_.clear(); }
 
     IPAddr resolve(const char *host) override {
@@ -311,9 +291,10 @@ public:
                 LOG_WARN("Domain resolution for ` failed", host);
                 return new IPAddr;  // undefined addr
             }
-            for (auto& each : addrs) {
-                if ((each.is_ipv4() ^ !ipv6_) == 0)
-                    return new IPAddr(each);
+            // TODO: support ipv6
+            for (auto& ip : addrs) {
+                if (ip.is_ipv4())
+                    return new IPAddr(ip);
             }
             return new IPAddr;      // undefined addr
         };
@@ -330,11 +311,10 @@ public:
 private:
     ObjectCache<std::string, IPAddr *> dnscache_;
     uint64_t resolve_timeout_;
-    bool ipv6_;
 };
 
-Resolver* new_default_resolver(uint64_t cache_ttl, uint64_t resolve_timeout, bool ipv6) {
-    return new DefaultResolver(cache_ttl, resolve_timeout, ipv6);
+Resolver* new_default_resolver(uint64_t cache_ttl, uint64_t resolve_timeout) {
+    return new DefaultResolver(cache_ttl, resolve_timeout);
 }
 
 }  // namespace net

@@ -1,5 +1,3 @@
-include_directories(${CMAKE_SOURCE_DIR}/include)
-link_directories(${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 add_definitions(-w)
 
 if(PHOTON_BUILD_SHARED)
@@ -13,7 +11,7 @@ target_link_libraries(test-fs PRIVATE ${photon_link_lib} ${testing_libs})
 add_test(NAME test-fs COMMAND $<TARGET_FILE:test-fs>)
 
 # add_executable(test-exportfs test_exportfs.cpp)
-# target_link_libraries(test-exportfs PRIVATE photon_static ${testing_libs})
+# target_link_libraries(test-exportfs PRIVATE photon_static)
 # add_test(NAME test-exportfs COMMAND $<TARGET_FILE:test-exportfs>)
 add_executable(test-filecopy test_filecopy.cpp)
 target_link_libraries(test-filecopy PRIVATE ${photon_link_lib} ${testing_libs})

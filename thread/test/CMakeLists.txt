@@ -1,5 +1,3 @@
-include_directories(${CMAKE_SOURCE_DIR}/include)
-link_directories(${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
 add_definitions(-w)
 
 if(PHOTON_BUILD_SHARED)
@@ -13,7 +11,7 @@ target_link_libraries(perf_usleepdefer_semaphore PRIVATE ${photon_link_lib} ${te
 add_test(NAME perf_usleepdefer_semaphore COMMAND $<TARGET_FILE:perf_usleepdefer_semaphore>)
 
 add_executable(test-thread test.cpp x.cpp)
-target_link_libraries(test-thread PRIVATE photon_static ${testing_libs})
+target_link_libraries(test-thread PRIVATE photon_static)
 add_test(NAME test-thread COMMAND $<TARGET_FILE:test-thread>)
 
 add_executable(test-std-compat test-std-compat.cpp)
@@ -39,3 +37,7 @@ add_test(NAME test-tls-order-photon COMMAND $<TARGET_FILE:test-tls-order-photon>
 add_executable(test-lib-data test-lib-data.cpp)
 target_link_libraries(test-lib-data PRIVATE ${photon_link_lib} ${testing_libs})
 add_test(NAME test-lib-data COMMAND $<TARGET_FILE:test-lib-data>)
+
+add_executable(test-multi-vcpu-locking test-multi-vcpu-locking.cpp)
+target_link_libraries(test-multi-vcpu-locking PRIVATE photon_static)
+add_test(NAME test-multi-vcpu-locking COMMAND $<TARGET_FILE:test-multi-vcpu-locking>)

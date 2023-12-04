@@ -19,8 +19,7 @@ find_package(PkgConfig REQUIRED)
 
 # Options
 set(PHOTON_CXX_STANDARD "14" CACHE STRING "C++ standard")
-option(PHOTON_BUILD_TESTING "enable build testing" OFF)
-option(PHOTON_BUILD_SHARED "build shared library" ON)
+option(PHOTON_BUILD_TESTING "enable build testing" ON)
 option(PHOTON_ENABLE_URING "enable io_uring function" OFF)
 option(PHOTON_ENABLE_FUSE "enable fuse function" OFF)
 option(PHOTON_ENABLE_SASL "enable sasl" OFF)
@@ -44,11 +43,9 @@ set(PHOTON_GOOGLETEST_SOURCE "https://github.com/google/googletest/archive/refs/
 
 # Get CPU arch and number
 execute_process(COMMAND uname -m OUTPUT_VARIABLE ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
-
 if(NOT(${ARCH} STREQUAL x86_64) AND NOT(${ARCH} STREQUAL aarch64) AND NOT(${ARCH} STREQUAL arm64))
     message(FATAL_ERROR "Unknown CPU architecture ${ARCH}")
 endif()
-
 ProcessorCount(NumCPU)
 
 # Compiler options
@@ -57,7 +54,6 @@ add_compile_options(-Wall) # -Werror is not enable yet
 set(CMAKE_CXX_STANDARD ${PHOTON_CXX_STANDARD})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
 # CMake didn't provide an abstraction of optimization level for now.
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O2 -DNDEBUG")
@@ -75,10 +71,8 @@ elseif(${ARCH} STREQUAL aarch64)
 endif()
 
 check_cxx_compiler_flag(-mcrc32 COMPILER_HAS_MCRC32_FLAG)
-
 if(COMPILER_HAS_MCRC32_FLAG)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcrc32")
-
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-command-line-argument")
     endif()
@@ -95,7 +89,6 @@ endif()
 
 # If ccache exists, use it to speed up compiling
 find_program(CCACHE_FOUND ccache)
-
 if(CCACHE_FOUND)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
 endif(CCACHE_FOUND)
@@ -106,7 +99,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/output)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/output)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/output)
 
-# ###############################################################################
+################################################################################
 
 # There are two ways to handle dependencies:
 #   1. Find locally installed packages.
@@ -125,28 +118,22 @@ endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "Linux")
     LIST(APPEND dependencies aio)
-
     if(PHOTON_ENABLE_FUSE)
         LIST(APPEND dependencies fuse)
     endif()
-
     if(PHOTON_ENABLE_URING)
         LIST(APPEND dependencies uring)
     endif()
 endif()
-
 if(PHOTON_ENABLE_SASL)
     LIST(APPEND dependencies gsasl)
 endif()
-
 if(PHOTON_ENABLE_FSTACK_DPDK)
     LIST(APPEND dependencies fstack)
 endif()
-
 if(PHOTON_ENABLE_EXTFS)
     LIST(APPEND dependencies e2fs)
 endif()
-
 if(PHOTON_BUILD_TESTING)
     LIST(APPEND dependencies gflags googletest)
 endif()
@@ -154,7 +141,6 @@ endif()
 foreach(dep ${dependencies})
     string(TOUPPER ${dep} DEP)
     set(source_url "${PHOTON_${DEP}_SOURCE}")
-
     if(PHOTON_BUILD_DEPENDENCIES AND(NOT source_url STREQUAL ""))
         message(STATUS "Will build ${dep} from source")
         message(STATUS "    URL: ${source_url}")
@@ -165,22 +151,20 @@ foreach(dep ${dependencies})
     endif()
 endforeach()
 
-# ###############################################################################
+################################################################################
+
 add_subdirectory(third_party)
 
-set(fs_httpfs_sources)
 set(fs_httpfs_sources fs/httpfs/httpfs_v2.cpp)
 
-if(NOT PHOTON_ENABLE_CURL)
-    list(APPEND httpfs_sources fs/httpfs/httpfs.cpp)
+if (NOT PHOTON_ENABLE_CURL)
+    list(APPEND fs_httpfs_sources fs/httpfs/httpfs.cpp)
 endif()
-
-if(PHOTON_ENABLE_CURL)
+if (PHOTON_ENABLE_CURL)
     set(net_sources "net/*.cpp")
 else()
     file(GLOB net_sources_glob "net/*.cpp")
     set(net_sources)
-
     foreach(file ${net_sources_glob})
         if(NOT file MATCHES "net/curl.cpp")
             list(APPEND net_sources ${file})
@@ -215,34 +199,28 @@ file(GLOB PHOTON_SRC
     thread/*.cpp
 )
 
-if(APPLE)
+if (APPLE)
     list(APPEND PHOTON_SRC io/kqueue.cpp)
 else()
     list(APPEND PHOTON_SRC io/aio-wrapper.cpp io/epoll.cpp)
-
     if(PHOTON_ENABLE_URING)
         list(APPEND PHOTON_SRC io/iouring-wrapper.cpp)
     endif()
 endif()
-
-if(PHOTON_ENABLE_FUSE)
+if (PHOTON_ENABLE_FUSE)
     list(APPEND PHOTON_SRC io/fuse-adaptor.cpp)
 endif()
-
-if(PHOTON_ENABLE_SASL)
+if (PHOTON_ENABLE_SASL)
     list(APPEND PHOTON_SRC net/security-context/sasl-stream.cpp)
 endif()
-
-if(PHOTON_ENABLE_FSTACK_DPDK)
+if (PHOTON_ENABLE_FSTACK_DPDK)
     list(APPEND PHOTON_SRC io/fstack-dpdk.cpp)
 endif()
-
-if(PHOTON_ENABLE_EXTFS)
+if (PHOTON_ENABLE_EXTFS)
     file(GLOB EXTFS_SRC fs/extfs/*.cpp)
     list(APPEND PHOTON_SRC ${EXTFS_SRC})
 endif()
-
-if(NOT PHOTON_ENABLE_CURL)
+if (NOT PHOTON_ENABLE_CURL)
     add_definitions(-DDISABLE_CURL)
 endif()
 
@@ -256,8 +234,7 @@ if (PHOTON_ENABLE_URING)
     target_include_directories(photon_obj PRIVATE ${URING_INCLUDE_DIRS})
     target_compile_definitions(photon_obj PRIVATE PHOTON_URING=on)
 endif()
-
-if(PHOTON_ENABLE_MIMIC_VDSO)
+if (PHOTON_ENABLE_MIMIC_VDSO)
     target_compile_definitions(photon_obj PRIVATE ENABLE_MIMIC_VDSO=on)
 endif()
 if (PHOTON_ENABLE_FSTACK_DPDK)
@@ -266,7 +243,6 @@ endif()
 if (PHOTON_ENABLE_EXTFS)
     target_include_directories(photon_obj PRIVATE ${LIBE2FS_INCLUDE_DIRS})
 endif()
-
 if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 8.0)
     # This option is enabled by default after -std=c++17
     target_compile_options(photon_obj PRIVATE -faligned-new)
@@ -276,7 +252,8 @@ if(actually_built)
     add_dependencies(photon_obj ${actually_built})
 endif()
 
-# ###############################################################################
+################################################################################
+
 set(static_deps
         easy_weak
         fstack_weak
@@ -293,39 +270,33 @@ set(shared_deps
     -lpthread
 )
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     list(APPEND shared_deps -lgcc) # solve [hidden symbol `__cpu_model'] problem
 endif()
-
-if(NOT APPLE)
+if (NOT APPLE)
     list(APPEND static_deps ${AIO_LIBRARIES})
     list(APPEND shared_deps -lrt -ldl)
 endif()
-
-if(PHOTON_ENABLE_URING)
+if (PHOTON_ENABLE_URING)
     list(APPEND static_deps ${URING_LIBRARIES})
 endif()
-
-if(PHOTON_ENABLE_FUSE)
+if (PHOTON_ENABLE_FUSE)
     list(APPEND static_deps ${FUSE_LIBRARIES})
 endif()
-
-if(PHOTON_ENABLE_SASL)
+if (PHOTON_ENABLE_SASL)
     list(APPEND static_deps ${GSASL_LIBRARIES})
 endif()
-
-if(PHOTON_ENABLE_FSTACK_DPDK)
+if (PHOTON_ENABLE_FSTACK_DPDK)
     list(APPEND static_deps ${FSTACK_LIBRARIES})
 endif()
-
-if(PHOTON_ENABLE_EXTFS)
+if (PHOTON_ENABLE_EXTFS)
     list(APPEND static_deps ${E2FS_LIBRARIES})
 endif()
 
 # Find out dynamic libs and append to `shared_deps`.
 # Because if not built from source, we won't know the local packages are static or shared.
 # This is for the max compatability.
-if(NOT APPLE)
+if (NOT APPLE)
     set(suffix "\.so$")
 else()
     set(suffix "\.dylib$" "\.tbd$")
@@ -343,8 +314,9 @@ endforeach ()
 set(version_scripts)
 list(APPEND version_scripts "-Wl,--version-script=${PROJECT_SOURCE_DIR}/tools/libaio.map")
 
-# ###############################################################################
-if(PHOTON_BUILD_SHARED)
+################################################################################
+
+# if(PHOTON_BUILD_SHARED)
 # Link photon shared lib
 add_library(photon_shared SHARED $<TARGET_OBJECTS:photon_obj>)
 set_target_properties(photon_shared PROPERTIES OUTPUT_NAME photon)
@@ -354,13 +326,13 @@ if (NOT APPLE)
             PRIVATE ${version_scripts} -Wl,--whole-archive ${static_deps} -Wl,--no-whole-archive
             PUBLIC ${shared_deps}
         )
-    else()
-        target_link_libraries(photon_shared
-            PUBLIC ${shared_deps}
-            PRIVATE -Wl,-force_load ${static_deps}
-        )
-    endif()
+else()
+    target_link_libraries(photon_shared
+        PUBLIC ${shared_deps}
+        PRIVATE -Wl,-force_load ${static_deps}
+    )
 endif()
+# endif()
 
 # Link photon static lib
 add_library(photon_static STATIC $<TARGET_OBJECTS:photon_obj>)
@@ -411,8 +383,7 @@ if(PHOTON_BUILD_TESTING)
     add_subdirectory(rpc/test)
     add_subdirectory(thread/test)
     add_subdirectory(net/security-context/test)
-
-    if(PHOTON_ENABLE_EXTFS)
+    if (PHOTON_ENABLE_EXTFS)
         add_subdirectory(fs/extfs/test)
     endif()
 endif()

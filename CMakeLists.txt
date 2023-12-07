@@ -189,6 +189,7 @@ file(GLOB PHOTON_SRC
     fs/xfile.cpp
     ${fs_httpfs_sources}
     io/signal.cpp
+    io/reset_handle.cpp
     ${net_sources}
     net/http/*.cpp
     net/security-context/tls-stream.cpp

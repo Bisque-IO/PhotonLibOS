@@ -25,6 +25,12 @@ limitations under the License.
 #include "io/reset_handle.h"
 #ifndef DISABLE_CURL
 #include "net/curl.h"
+#else
+#include "common/alog-functionptr.h"
+#include "common/alog-stdstring.h"
+#include "common/alog.h"
+#include "common/estring.h"
+#include "common/iovector.h"
 #endif
 #include "net/socket.h"
 #include "fs/exportfs.h"

@@ -118,7 +118,10 @@ public:
             ERR_error_string_n(ERR_get_error(), errbuf, MAX_ERRSTRING_SIZE);
             LOG_ERROR(0, -1, "Failed to initial TLS: ", errbuf);
         }
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-value"
         SSL_CTX_set_ecdh_auto(ctx, 1);
+#pragma GCC diagnostic pop
     }
 
     ~TLSContextImpl() override {

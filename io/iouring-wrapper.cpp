@@ -78,7 +78,11 @@ public:
     int init() {
         rlimit resource_limit{.rlim_cur = RLIM_INFINITY, .rlim_max = RLIM_INFINITY};
         if (setrlimit(RLIMIT_MEMLOCK, &resource_limit) != 0) {
-            LOG_ERROR_RETURN(0, -1, "iouring: failed to set resource limit. Use command `ulimit -l unlimited`, or change to root");
+            rlimit rlimit_memlock{0, 0};
+            getrlimit(RLIMIT_MEMLOCK, &rlimit_memlock);
+            LOG_ERROR_RETURN(0, -1, "iouring: failed to set resource limit. Use command 'ulimit -l unlimited', ",
+                "or change to root. CURRENT RLIMIT_MEMLOCK CUR=", rlimit_memlock.rlim_cur,
+                " MAX=", rlimit_memlock.rlim_max);
         }
         check_register_file_support();
         check_cooperative_task_support();
@@ -108,7 +112,7 @@ public:
         if (probe == nullptr) {
             LOG_ERROR_RETURN(0, -1, "iouring: failed to get probe");
         }
-        DEFER(free(probe));
+        DEFER(io_uring_free_probe(probe));
         if (!io_uring_opcode_supported(probe, IORING_OP_PROVIDE_BUFFERS) ||
             !io_uring_opcode_supported(probe, IORING_OP_ASYNC_CANCEL)) {
             LOG_ERROR_RETURN(0, -1, "iouring: some opcodes are not supported");
@@ -122,12 +126,16 @@ public:
 
         // Register files. Init with sparse entries
         if (register_files_enabled()) {
-            auto entries = new int[REGISTER_FILES_MAX_NUM];
-            DEFER(delete[] entries);
-            for (int i = 0; i < REGISTER_FILES_MAX_NUM; ++i) {
-                entries[i] = REGISTER_FILES_SPARSE_FD;
-            }
-            ret = io_uring_register_files(m_ring, entries, REGISTER_FILES_MAX_NUM);
+            // auto entries = new int[REGISTER_FILES_MAX_NUM];
+            // DEFER(delete[] entries);
+            // for (int i = 0; i < REGISTER_FILES_MAX_NUM; ++i) {
+            //     entries[i] = REGISTER_FILES_SPARSE_FD;
+            // }
+            // ret = io_uring_register_files(m_ring, entries, REGISTER_FILES_MAX_NUM);
+            // if (ret != 0) {
+            //     LOG_ERROR_RETURN(-ret, -1, "iouring: unable to register files, ", ERRNO(-ret));
+            // }
+            ret = io_uring_register_files_sparse(m_ring, REGISTER_FILES_MAX_NUM);
             if (ret != 0) {
                 LOG_ERROR_RETURN(-ret, -1, "iouring: unable to register files, ", ERRNO(-ret));
             }

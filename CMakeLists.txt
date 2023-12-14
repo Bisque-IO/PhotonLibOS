@@ -6,7 +6,7 @@ project(
     LANGUAGES C CXX ASM
 )
 
-# set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".so")
+set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".so")
 
 # Utility Modules and Find Modules
 include(FindPackageHandleStandardArgs)
@@ -14,19 +14,19 @@ include(CheckCXXCompilerFlag)
 include(FetchContent)
 include(ProcessorCount)
 include(ExternalProject)
-include(CMake/build-from-src.cmake)
 find_package(PkgConfig REQUIRED)
 
 # Options
 set(PHOTON_CXX_STANDARD "14" CACHE STRING "C++ standard")
-option(PHOTON_BUILD_TESTING "enable build testing" OFF)
-option(PHOTON_ENABLE_URING "enable io_uring function" OFF)
+option(PHOTON_BUILD_TESTING "enable build testing" ON)
+option(PHOTON_ENABLE_URING "enable io_uring function" ON)
 option(PHOTON_ENABLE_FUSE "enable fuse function" OFF)
 option(PHOTON_ENABLE_SASL "enable sasl" OFF)
 option(PHOTON_ENABLE_MIMIC_VDSO "enable mimic vdso" OFF)
 option(PHOTON_ENABLE_FSTACK_DPDK "Use f-stack + DPDK as the event engine" OFF)
 option(PHOTON_ENABLE_EXTFS "enable extfs" OFF)
 option(PHOTON_ENABLE_CURL "enable curl" ON)
+option(PHOTON_ENABLE_CPM "enable CPM dependency management" ON)
 
 option(PHOTON_BUILD_DEPENDENCIES "" OFF)
 set(PHOTON_AIO_SOURCE "https://pagure.io/libaio/archive/libaio-0.3.113/libaio-0.3.113.tar.gz" CACHE STRING "")
@@ -40,6 +40,10 @@ set(PHOTON_FSTACK_SOURCE "" CACHE STRING "")
 set(PHOTON_E2FS_SOURCE "" CACHE STRING "")
 set(PHOTON_GFLAGS_SOURCE "https://github.com/gflags/gflags/archive/refs/tags/v2.2.2.tar.gz" CACHE STRING "")
 set(PHOTON_GOOGLETEST_SOURCE "https://github.com/google/googletest/archive/refs/tags/release-1.12.1.tar.gz" CACHE STRING "")
+
+if(PHOTON_ENABLE_CPM AND PHOTON_BUILD_DEPENDENCIES)
+    message(FATAL_ERROR "PHOTON_ENABLE_CPM and PHOTON_BUILD_DEPENDENCIES are both enabled. Choose one.")
+endif()
 
 # Get CPU arch and number
 execute_process(COMMAND uname -m OUTPUT_VARIABLE ARCH OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -100,6 +104,8 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/output)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/output)
 
 ################################################################################
+
+include(CMake/build-from-src.cmake)
 
 # There are two ways to handle dependencies:
 #   1. Find locally installed packages.
@@ -247,22 +253,13 @@ if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 8.0)
 endif()
 
 if(actually_built)
+    # target_link_libraries(photon_obj ${actually_built})
     add_dependencies(photon_obj ${actually_built})
 endif()
 
+message("actually_built ${actually_built}")
+
 ################################################################################
-
-set(static_deps
-        easy_weak
-        fstack_weak
-        ${CURL_LIBRARIES}
-        ${OPENSSL_LIBRARIES}
-        ${ZLIB_LIBRARIES}
-)
-
-if(PHOTON_ENABLE_CURL)
-    list(APPEND static_deps ${CURL_LIBRARIES})
-endif()
 
 set(shared_deps
     -lpthread
@@ -271,13 +268,44 @@ set(shared_deps
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     list(APPEND shared_deps -lgcc) # solve [hidden symbol `__cpu_model'] problem
 endif()
-if (NOT APPLE)
-    list(APPEND static_deps ${AIO_LIBRARIES})
-    list(APPEND shared_deps -lrt -ldl)
+
+if(PHOTON_ENABLE_CPM)
+    set(static_deps
+        easy_weak
+        fstack_weak
+        zlib
+        crypto
+        ssl
+    )
+    if(PHOTON_ENABLE_CURL)
+        list(APPEND static_deps curl)
+    endif()
+    if (NOT APPLE)
+        list(APPEND static_deps aio)
+        list(APPEND shared_deps -lrt -ldl)
+    endif()
+    if (PHOTON_ENABLE_URING)
+        list(APPEND static_deps uring)
+    endif()
+else()
+    set(static_deps
+        easy_weak
+        fstack_weak
+        ${OPENSSL_LIBRARIES}
+        ${ZLIB_LIBRARIES}
+    )
+    if(PHOTON_ENABLE_CURL)
+        list(APPEND static_deps ${CURL_LIBRARIES})
+    endif()
+    if (NOT APPLE)
+        list(APPEND static_deps ${AIO_LIBRARIES})
+        list(APPEND shared_deps -lrt -ldl)
+    endif()
+    if (PHOTON_ENABLE_URING)
+        list(APPEND static_deps ${URING_LIBRARIES})
+    endif()
 endif()
-if (PHOTON_ENABLE_URING)
-    list(APPEND static_deps ${URING_LIBRARIES})
-endif()
+
 if (PHOTON_ENABLE_FUSE)
     list(APPEND static_deps ${FUSE_LIBRARIES})
 endif()
@@ -314,7 +342,6 @@ list(APPEND version_scripts "-Wl,--version-script=${PROJECT_SOURCE_DIR}/tools/li
 
 ################################################################################
 
-# if(PHOTON_BUILD_SHARED)
 # Link photon shared lib
 add_library(photon_shared SHARED $<TARGET_OBJECTS:photon_obj>)
 set_target_properties(photon_shared PROPERTIES OUTPUT_NAME photon)
@@ -330,7 +357,6 @@ else()
         PRIVATE -Wl,-force_load ${static_deps}
     )
 endif()
-# endif()
 
 # Link photon static lib
 add_library(photon_static STATIC $<TARGET_OBJECTS:photon_obj>)
@@ -369,7 +395,7 @@ if(PHOTON_BUILD_TESTING)
     add_library(ci-tools STATIC test/ci-tools.cpp)
 
     include_directories(photon_static ${GFLAGS_INCLUDE_DIRS} ${GOOGLETEST_INCLUDE_DIRS})
-    link_libraries(${GFLAGS_LIBRARIES} ${GOOGLETEST_LIBRARIES} ci-tools)
+    link_libraries(${GFLAGS_LIBRARIES} ${GOOGLETEST_LIBRARIES} gflags ci-tools)
 
     add_subdirectory(examples)
     add_subdirectory(common/checksum/test)

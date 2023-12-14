@@ -3,6 +3,205 @@
 
 set(actually_built)
 
+if (PHOTON_ENABLE_CPM)
+    include(CMake/CPM.cmake)
+
+    # CPMAddPackage(
+    #     NAME gflags
+    #     GITHUB_REPOSITORY gflags/gflags
+    #     VERSION 2.2.2
+    #     OPTIONS "GFLAGS_IS_SUBPROJECT YES"
+    #         "BUILD_SHARED_LIBS NO"
+    #         "BUILD_STATIC_LIBS YES"
+    # )
+
+    # if(gflags_ADDED)
+    #     # set_property(TARGET gflags PROPERTY POSITION_INDEPENDENT_CODE ON)
+    #     include_directories(${gflags_BINARY_DIR}/include)
+    #     set(GFLAGS_INCLUDE_DIRS ${gflags_BINARY_DIR}/include)
+    # endif()
+
+    # CPMAddPackage(
+    #     NAME gtest
+    #     GITHUB_REPOSITORY google/googletest
+    #     VERSION 1.14.0
+    #     OPTIONS "BUILD_GMOCK  YES"
+    #             "INSTALL_GTEST OFF"
+    #             "GTEST_HAS_ABSL NO"
+    #             "POSITION_INDEPENDENT_CODE"
+    # )
+
+    # if(gtest_ADDED)
+    #     # set_property(TARGET gflags PROPERTY POSITION_INDEPENDENT_CODE ON)
+    #     include_directories(${gtest_BINARY_DIR}/include)
+    #     # set(GFLAGS_INCLUDE_DIRS ${gtest_BINARY_DIR}/include)
+    #     # set(ZLIB_LIBRARIES ${libz_BINARY_DIR}/libz.a PARENT_SCOPE)
+    #     # set(ZLIB_INCLUDE_DIRS ${libz_SOURCE_DIR} PARENT_SCOPE)
+    #     # set(ZLIB_LIBRARIES ${libz_BINARY_DIR}/libz.a)
+    #     # set(ZLIB_INCLUDE_DIRS ${libz_SOURCE_DIR})
+    #     # set(ZLIB_LIBRARY ${libz_BINARY_DIR}/libz.a)
+    #     # set(ZLIB_INCLUDE_DIR ${libz_SOURCE_DIR})
+    #     # add_library(zlib ALIAS zlibstatic)
+    #     # add_library(ZLIB::ZLIB ALIAS zlibstatic)
+    #     # set(ZLIB_ROOT_DIR ${libz_BINARY_DIR})
+    # endif()
+
+    CPMAddPackage(
+        NAME zlib
+        GITHUB_REPOSITORY Bisque-IO/zlib
+        VERSION 1.3.0.1
+        OPTIONS "ZLIB_ENABLE_TESTING OFF"
+                "ZLIB_BUILD_EXAMPLES OFF"
+                "ZLIB_BUILD_SHARED OFF"
+    )
+    if (zlib_ADDED)
+        set_property(TARGET zlibstatic PROPERTY POSITION_INDEPENDENT_CODE ON)
+        include_directories(${zlib_SOURCE_DIR} ${zlib_BINARY_DIR})
+        set(ZLIB_LIBRARIES ${zlib_BINARY_DIR}/libz.a)
+        set(ZLIB_INCLUDE_DIRS ${zlib_SOURCE_DIR} ${zlib_BINARY_DIR})
+        set(ZLIB_LIBRARY ${zlib_BINARY_DIR}/libz.a)
+        set(ZLIB_INCLUDE_DIR ${zlib_SOURCE_DIR} &{zlib_BINARY_DIR})
+        add_library(ZLIB::ZLIB ALIAS zlibstatic)
+        add_library(ZLIB ALIAS zlibstatic)
+        set(ZLIB_ROOT_DIR ${zlib_BINARY_DIR})
+
+        list(APPEND actually_built zlib)
+    endif()
+
+    if (CMAKE_SYSTEM_NAME MATCHES "Linux")
+        CPMAddPackage(
+            NAME aio
+            GIT_REPOSITORY https://pagure.io/libaio.git
+            GIT_TAG libaio-0.3.113
+            DOWNLOAD_ONLY
+        )
+        if (aio_ADDED)
+            include_directories(${aio_SOURCE_DIR}/src)
+            set(AIO_LIBRARIES ${aio_SOURCE_DIR}/src/libaio.a)
+            set(AIO_INCLUDE_DIRS ${aio_SOURCE_DIR}/src)
+            add_custom_target(build_aio
+                COMMAND make
+                WORKING_DIRECTORY ${aio_SOURCE_DIR}/src
+            )
+            add_library(aio STATIC IMPORTED)
+            set_target_properties(aio PROPERTIES
+                IMPORTED_LOCATION ${aio_SOURCE_DIR}/src/libaio.a
+                INTERFACE_INCLUDE_DIRECTORIES ${aio_SOURCE_DIR}/src
+            )
+            add_dependencies(aio build_aio)
+            set(AIO_ROOT_DIR ${aio_SOURCE_DIR})
+            list(APPEND actually_built aio)
+        endif()
+    endif()
+
+    if (PHOTON_ENABLE_URING)
+        CPMAddPackage(
+            NAME uring
+            GITHUB_REPOSITORY axboe/liburing
+            GIT_TAG liburing-2.5
+            DOWNLOAD_ONLY
+        )
+        if (uring_ADDED)
+            include_directories(${uring_SOURCE_DIR}/src/include)
+            set(URING_LIBRARIES ${uring_SOURCE_DIR}/src/liburing.a)
+            set(URING_INCLUDE_DIRS ${uring_SOURCE_DIR}/src/include)
+            add_custom_target(build_uring
+                COMMAND ./configure && cd src && make
+                WORKING_DIRECTORY ${uring_SOURCE_DIR}
+            )
+            add_library(uring STATIC IMPORTED)
+            set_target_properties(uring PROPERTIES
+                IMPORTED_LOCATION ${uring_SOURCE_DIR}/src/liburing.a
+                INTERFACE_INCLUDE_DIRECTORIES ${uring_SOURCE_DIR}/src/include
+            )
+            add_dependencies(uring build_uring)
+            include_directories(${uring_SOURCE_DIR}/src/include)
+            list(APPEND actually_built uring)
+        endif()
+    endif()
+
+    CPMAddPackage(
+        NAME openssl
+        GITHUB_REPOSITORY janbar/openssl-cmake
+        GIT_TAG 1.1.1w-20231130
+        OPTIONS "WITH_APPS OFF"
+    )
+    if (openssl_ADDED)
+        set_property(TARGET ssl PROPERTY POSITION_INDEPENDENT_CODE ON)
+        set_property(TARGET crypto PROPERTY POSITION_INDEPENDENT_CODE ON)
+        include_directories(${openssl_SOURCE_DIR}/include)
+        include_directories(${openssl_BINARY_DIR}/include)
+        set(OPENSSL_INCLUDE_DIR ${openssl_SOURCE_DIR}/include ${openssl_BINARY_DIR}/include)
+        set(OPENSSL_INCLUDE_DIRS ${openssl_SOURCE_DIR}/include ${openssl_BINARY_DIR}/include)
+        add_library(OpenSSL::Crypto ALIAS crypto)
+        add_library(OpenSSL::SSL ALIAS ssl)
+        set(OPENSSL_SSL_LIBRARIES ${openssl_BINARY_DIR}/ssl/libssl.a)
+        set(OPENSSL_SSL_LIBRARY ${openssl_BINARY_DIR}/ssl/libssl.a)
+        set(OPENSSL_CRYPTO_LIBRARIES ${openssl_BINARY_DIR}/crypto/libcrypto.a)
+        set(OPENSSL_CRYPTO_LIBRARY ${openssl_BINARY_DIR}/crypto/libcrypto.a)
+        set(OPENSSL_ROOT_DIR ${openssl_SOURCE_DIR} ${openssl_BINARY_DIR} ${openssl_BINARY_DIR}/crypto ${openssl_BINARY_DIR}/ssl)
+        set(OPENSSL_LIBRARIES ${OPENSSL_SSL_LIBRARIES} ${OPENSSL_CRYPTO_LIBRARIES})
+        set(OPENSSL_LIBRARY ${OPENSSL_SSL_LIBRARIES} ${OPENSSL_CRYPTO_LIBRARIES})
+        list(APPEND actually_built crypto)
+        list(APPEND actually_built ssl)
+    endif()
+
+    if (PHOTON_ENABLE_CURL)
+        CPMAddPackage(
+            NAME libcurl
+            GITHUB_REPOSITORY curl/curl
+            GIT_TAG curl-8_5_0
+            OPTIONS "BUILD_STATIC_LIBS ON"
+                    "BUILD_SHARED_LIBS OFF"
+                    "BUILD_CURL_EXE OFF"
+                    "BUILD_TESTING OFF"
+                    "CURL_ENABLE_EXPORT_TARGET OFF"
+                    "USE_LIBIDN2 OFF"
+                    "CURL_DISABLE_FTP 0"
+                    "CURL_DISABLE_SFTP 0"
+                    "CURL_DISABLE_GOPHER 1"
+                    "CURL_DISABLE_IMAP 1"
+                    "CURL_DISABLE_LDAP 1"
+                    "CURL_DISABLE_LDAPS 1"
+                    "CURL_DISABLE_MQTT 1"
+                    "CURL_DISABLE_NETRC 1"
+                    "CURL_DISABLE_NTLM 1"
+                    "CURL_DISABLE_POP3 1"
+                    "CURL_DISABLE_SSH 0"
+                    "CURL_DISABLE_SMB 1"
+                    "CURL_DISABLE_SMBS 1"
+                    "CURL_DISABLE_SMTP 1"
+                    "CURL_DISABLE_SMTPS 1"
+                    "CURL_DISABLE_TELNET 1"
+                    "CURL_DISABLE_TFTP 1"
+                    "CURL_DISABLE_KERBEROS_AUTH 0"
+                    "CURL_DISABLE_HSTS 1"
+                    "CURL_DISABLE_RTSP 1"
+                    "CURL_DISABLE_ALTSVC 1"
+                    "CURL_DISABLE_COOKIES 0"
+                    "CURL_DISABLE_DICT 0"
+                    "USE_LIBPSL 0"
+                    "CURL_USE_LIBPSL 0"
+                    "USE_LIBSSH2 0"
+                    "CURL_USE_LIBSSH2 0"
+                    "USE_LIBIDN2 0"
+                    "CURL_USE_LIBIDN2 0"
+                    "USE_WEBSOCKETS 1"
+                    "CURL_DISABLE_OPENSSL_AUTO_LOAD_CONFIG OFF"
+        )
+        if (libcurl_ADDED)
+            set_property(TARGET libcurl_static PROPERTY POSITION_INDEPENDENT_CODE ON)
+            set(CURL_LIBRARIES ${libcurl_BINARY_DIR}/lib/libcurl.a)
+            set(CURL_LIBRARY ${libcurl_BINARY_DIR}/lib/libcurl.a)
+            set(CURL_INCLUDE_DIRS ${libcurl_SOURCE_DIR}/include)
+            set(CURL_INCLUDE_DIR ${libcurl_SOURCE_DIR}/include)
+            message("CURL_LIBRARIES: ${CURL_LIBRARIES}")
+            add_library(curl ALIAS libcurl_static)
+            list(APPEND actually_built curl)
+        endif()
+    endif()
+endif()
+
 function(build_from_src [dep])
     if (dep STREQUAL "aio")
         set(BINARY_DIR ${PROJECT_BINARY_DIR}/aio-build)

@@ -17,6 +17,7 @@ limitations under the License.
 #pragma once
 #include <sys/types.h>
 #include <memory>
+#include <cstdlib>
 #include <photon/common/object.h>
 
 struct iovec;

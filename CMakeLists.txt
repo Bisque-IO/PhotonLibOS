@@ -14,12 +14,13 @@ include(CheckCXXCompilerFlag)
 include(FetchContent)
 include(ProcessorCount)
 include(ExternalProject)
+include(CMake/CPM.cmake)
 find_package(PkgConfig REQUIRED)
 
 # Options
 set(PHOTON_CXX_STANDARD "14" CACHE STRING "C++ standard")
-option(PHOTON_BUILD_TESTING "enable build testing" ON)
-option(PHOTON_ENABLE_URING "enable io_uring function" ON)
+option(PHOTON_BUILD_TESTING "enable build testing" OFF)
+option(PHOTON_ENABLE_URING "enable io_uring function" OFF)
 option(PHOTON_ENABLE_FUSE "enable fuse function" OFF)
 option(PHOTON_ENABLE_SASL "enable sasl" OFF)
 option(PHOTON_ENABLE_MIMIC_VDSO "enable mimic vdso" OFF)
@@ -253,7 +254,6 @@ if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 8.0)
 endif()
 
 if(actually_built)
-    # target_link_libraries(photon_obj ${actually_built})
     add_dependencies(photon_obj ${actually_built})
 endif()
 
@@ -349,7 +349,7 @@ target_include_directories(photon_shared PUBLIC include ${CURL_INCLUDE_DIRS})
 if (NOT APPLE)
     target_link_libraries(photon_shared
             PRIVATE ${version_scripts} -Wl,--whole-archive ${static_deps} -Wl,--no-whole-archive
-            PUBLIC ${shared_deps}
+            PUBLIC ${shared_deps} ${static_deps}
         )
 else()
     target_link_libraries(photon_shared

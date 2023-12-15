@@ -6,45 +6,21 @@ set(actually_built)
 if (PHOTON_ENABLE_CPM)
     include(CMake/CPM.cmake)
 
-    # CPMAddPackage(
-    #     NAME gflags
-    #     GITHUB_REPOSITORY gflags/gflags
-    #     VERSION 2.2.2
-    #     OPTIONS "GFLAGS_IS_SUBPROJECT YES"
-    #         "BUILD_SHARED_LIBS NO"
-    #         "BUILD_STATIC_LIBS YES"
-    # )
+    if (PHOTON_BUILD_TESTING)
+        CPMAddPackage(
+            NAME gflags
+            GITHUB_REPOSITORY gflags/gflags
+            VERSION 2.2.2
+            OPTIONS "GFLAGS_IS_SUBPROJECT YES"
+                    "BUILD_SHARED_LIBS NO"
+                    "BUILD_STATIC_LIBS YES"
+        )
 
-    # if(gflags_ADDED)
-    #     # set_property(TARGET gflags PROPERTY POSITION_INDEPENDENT_CODE ON)
-    #     include_directories(${gflags_BINARY_DIR}/include)
-    #     set(GFLAGS_INCLUDE_DIRS ${gflags_BINARY_DIR}/include)
-    # endif()
-
-    # CPMAddPackage(
-    #     NAME gtest
-    #     GITHUB_REPOSITORY google/googletest
-    #     VERSION 1.14.0
-    #     OPTIONS "BUILD_GMOCK  YES"
-    #             "INSTALL_GTEST OFF"
-    #             "GTEST_HAS_ABSL NO"
-    #             "POSITION_INDEPENDENT_CODE"
-    # )
-
-    # if(gtest_ADDED)
-    #     # set_property(TARGET gflags PROPERTY POSITION_INDEPENDENT_CODE ON)
-    #     include_directories(${gtest_BINARY_DIR}/include)
-    #     # set(GFLAGS_INCLUDE_DIRS ${gtest_BINARY_DIR}/include)
-    #     # set(ZLIB_LIBRARIES ${libz_BINARY_DIR}/libz.a PARENT_SCOPE)
-    #     # set(ZLIB_INCLUDE_DIRS ${libz_SOURCE_DIR} PARENT_SCOPE)
-    #     # set(ZLIB_LIBRARIES ${libz_BINARY_DIR}/libz.a)
-    #     # set(ZLIB_INCLUDE_DIRS ${libz_SOURCE_DIR})
-    #     # set(ZLIB_LIBRARY ${libz_BINARY_DIR}/libz.a)
-    #     # set(ZLIB_INCLUDE_DIR ${libz_SOURCE_DIR})
-    #     # add_library(zlib ALIAS zlibstatic)
-    #     # add_library(ZLIB::ZLIB ALIAS zlibstatic)
-    #     # set(ZLIB_ROOT_DIR ${libz_BINARY_DIR})
-    # endif()
+        if(gflags_ADDED)
+            include_directories(${gflags_BINARY_DIR}/include)
+            set(GFLAGS_INCLUDE_DIRS ${gflags_BINARY_DIR}/include)
+        endif()
+    endif()
 
     CPMAddPackage(
         NAME zlib
@@ -77,11 +53,11 @@ if (PHOTON_ENABLE_CPM)
         )
         if (aio_ADDED)
             include_directories(${aio_SOURCE_DIR}/src)
-            set(AIO_LIBRARIES ${aio_SOURCE_DIR}/src/libaio.a)
-            set(AIO_INCLUDE_DIRS ${aio_SOURCE_DIR}/src)
             add_custom_target(build_aio
-                COMMAND make
+                COMMAND test -e "${aio_SOURCE_DIR}/src/libaio.a" || make
                 WORKING_DIRECTORY ${aio_SOURCE_DIR}/src
+                BYPRODUCTS ${aio_SOURCE_DIR}/src/libaio.a
+                VERBATIM
             )
             add_library(aio STATIC IMPORTED)
             set_target_properties(aio PROPERTIES
@@ -90,11 +66,13 @@ if (PHOTON_ENABLE_CPM)
             )
             add_dependencies(aio build_aio)
             set(AIO_ROOT_DIR ${aio_SOURCE_DIR})
+            set(AIO_LIBRARIES ${aio_SOURCE_DIR}/src/libaio.a)
+            set(AIO_INCLUDE_DIRS ${aio_SOURCE_DIR}/src)
             list(APPEND actually_built aio)
         endif()
     endif()
 
-    if (PHOTON_ENABLE_URING)
+    if (PHOTON_ENABLE_URING AND CMAKE_SYSTEM_NAME MATCHES "Linux")
         CPMAddPackage(
             NAME uring
             GITHUB_REPOSITORY axboe/liburing
@@ -103,11 +81,12 @@ if (PHOTON_ENABLE_CPM)
         )
         if (uring_ADDED)
             include_directories(${uring_SOURCE_DIR}/src/include)
-            set(URING_LIBRARIES ${uring_SOURCE_DIR}/src/liburing.a)
-            set(URING_INCLUDE_DIRS ${uring_SOURCE_DIR}/src/include)
             add_custom_target(build_uring
-                COMMAND ./configure && cd src && make
-                WORKING_DIRECTORY ${uring_SOURCE_DIR}
+                COMMAND test -e "${uring_SOURCE_DIR}/src/liburing.a" || sh ${uring_SOURCE_DIR}/configure
+                COMMAND test -e "${uring_SOURCE_DIR}/src/liburing.a" || make
+                WORKING_DIRECTORY ${uring_SOURCE_DIR}/src
+                BYPRODUCTS ${uring_SOURCE_DIR}/src/liburing.a
+                VERBATIM
             )
             add_library(uring STATIC IMPORTED)
             set_target_properties(uring PROPERTIES
@@ -115,7 +94,9 @@ if (PHOTON_ENABLE_CPM)
                 INTERFACE_INCLUDE_DIRECTORIES ${uring_SOURCE_DIR}/src/include
             )
             add_dependencies(uring build_uring)
-            include_directories(${uring_SOURCE_DIR}/src/include)
+            set(URING_ROOT_DIR ${uring_SOURCE_DIR})
+            set(URING_LIBRARIES ${uring_SOURCE_DIR}/src/liburing.a)
+            set(URING_INCLUDE_DIRS ${uring_SOURCE_DIR}/src/include)
             list(APPEND actually_built uring)
         endif()
     endif()
@@ -148,7 +129,7 @@ if (PHOTON_ENABLE_CPM)
 
     if (PHOTON_ENABLE_CURL)
         CPMAddPackage(
-            NAME libcurl
+            NAME curl
             GITHUB_REPOSITORY curl/curl
             GIT_TAG curl-8_5_0
             OPTIONS "BUILD_STATIC_LIBS ON"
@@ -189,12 +170,12 @@ if (PHOTON_ENABLE_CPM)
                     "USE_WEBSOCKETS 1"
                     "CURL_DISABLE_OPENSSL_AUTO_LOAD_CONFIG OFF"
         )
-        if (libcurl_ADDED)
+        if (curl_ADDED)
             set_property(TARGET libcurl_static PROPERTY POSITION_INDEPENDENT_CODE ON)
-            set(CURL_LIBRARIES ${libcurl_BINARY_DIR}/lib/libcurl.a)
-            set(CURL_LIBRARY ${libcurl_BINARY_DIR}/lib/libcurl.a)
-            set(CURL_INCLUDE_DIRS ${libcurl_SOURCE_DIR}/include)
-            set(CURL_INCLUDE_DIR ${libcurl_SOURCE_DIR}/include)
+            set(CURL_LIBRARIES ${curl_BINARY_DIR}/lib/libcurl.a)
+            set(CURL_LIBRARY ${curl_BINARY_DIR}/lib/libcurl.a)
+            set(CURL_INCLUDE_DIRS ${curl_SOURCE_DIR}/include)
+            set(CURL_INCLUDE_DIR ${curl_SOURCE_DIR}/include)
             message("CURL_LIBRARIES: ${CURL_LIBRARIES}")
             add_library(curl ALIAS libcurl_static)
             list(APPEND actually_built curl)
